@@ -12,7 +12,7 @@ class InvalidJsonException extends RuntimeException implements ExceptionInterfac
     {
         $this->errorCode = $errorCode;
 
-        parent::__construct('Invalid JSON.');
+        parent::__construct((strlen($errorCode) > 0) ? $errorCode : 'Invalid JSON.');
     }
 
     public function getErrorCode()

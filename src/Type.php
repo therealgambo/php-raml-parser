@@ -2,8 +2,6 @@
 
 namespace Raml;
 
-use Raml\Type;
-use Raml\Utility\StringTransformer;
 use Symfony\Component\Yaml\Yaml;
 
 /**
@@ -157,7 +155,7 @@ class Type implements ArrayInstantiationInterface, TypeInterface
     /**
      * Get definition
      *
-     * @return string Returns definition property.
+     * @return array Returns definition property.
      */
     public function getDefinition()
     {

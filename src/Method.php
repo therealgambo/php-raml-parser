@@ -97,6 +97,13 @@ class Method implements ArrayInstantiationInterface, MessageSchemaInterface
      */
     private $securitySchemes = [];
 
+    /*
+     * A list of annotations applied to this method
+     *
+     * @var Annotation[]
+     */
+    private $annotations = [];
+
     // ---
 
     /**
@@ -205,6 +212,17 @@ class Method implements ArrayInstantiationInterface, MessageSchemaInterface
                 } else {
                     $method->addSecurityScheme(SecurityScheme::createFromArray('null', array(), $apiDefinition));
                 }
+            }
+        }
+
+        foreach ($data as $key => $value) {
+            if (preg_match('/\((.*)\)/', $key, $matches)) {
+                if (!is_array($value)) {
+                    $value = array($value);
+                }
+                $method->addAnnotation(
+                    Annotation::createFromArray($matches[1], $value, $apiDefinition, 'Method')
+                );
             }
         }
 
@@ -496,5 +514,41 @@ class Method implements ArrayInstantiationInterface, MessageSchemaInterface
             }
             
         }
+    }
+
+
+    /**
+     * Get all annotations
+     *
+     * @return Annotation[]
+     */
+    public function getAnnotations()
+    {
+        return $this->annotations;
+    }
+
+    /**
+     * Gets a specific type of annotation
+     *
+     * @param string $key
+     *
+     * @return Annotation|null
+     */
+    public function getAnnotation($key)
+    {
+        return isset($this->annotations[$key]) ? $this->annotations[$key] : null;
+    }
+
+    /**
+     * Adds an annotation
+     *
+     * @param Annotation $annotation
+     *
+     * @return self
+     */
+    public function addAnnotation($annotation)
+    {
+        $this->annotations[$annotation->getKey()] = $annotation;
+        return $this;
     }
 }

@@ -161,6 +161,15 @@ class ApiDefinition implements ArrayInstantiationInterface
      */
     private $types = [];
 
+    /**
+     * A list of annotation type definitions
+     *
+     * @link https://github.com/raml-org/raml-spec/blob/master/versions/raml-10/raml-10.md/#annotations
+     *
+     * @var AnnotationType[]
+     */
+    private $annotationTypes = [];
+
     // ---
 
     /**
@@ -268,6 +277,15 @@ class ApiDefinition implements ArrayInstantiationInterface
             $types = isset($data['schemas']) ? $data['schemas'] : $data['types'];
             foreach ($types as $name => $definition) {
                 $apiDefinition->addType(ApiDefinition::determineType($name, $definition));
+            }
+        }
+
+        if (isset($data['annotationTypes'])) {
+            foreach ($data['annotationTypes'] as $key => $annotationType) {
+                if (!is_array($annotationType)) {
+                    $annotationType = array($annotationType);
+                }
+                $apiDefinition->addAnnotationType(AnnotationType::createFromArray($key, $annotationType));
             }
         }
 
@@ -820,5 +838,28 @@ class ApiDefinition implements ArrayInstantiationInterface
         }
 
         return $all;
+    }
+
+    /**
+     * Gets all annotation types
+     *
+     * @return AnnotationType[]
+     */
+    public function getAnnotationTypes()
+    {
+        return $this->annotationTypes;
+    }
+
+    /**
+     * Adds an annotation types
+     *
+     * @param AnnotationType $annotationType
+     *
+     * @return self
+     */
+    public function addAnnotationType($annotationType)
+    {
+        $this->annotationTypes[$annotationType->getKey()] = $annotationType;
+        return $this;
     }
 }

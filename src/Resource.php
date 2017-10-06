@@ -76,6 +76,13 @@ class Resource implements ArrayInstantiationInterface
      */
     private $methods = [];
 
+    /**
+     * A list of annotations applied to this resource
+     *
+     * @var Annotation[]
+     */
+    private $annotations = [];
+
     // ---
 
     /**
@@ -114,7 +121,7 @@ class Resource implements ArrayInstantiationInterface
      *
      * @return self
      */
-    public static function createFromArray($uri, array $data = [], ApiDefinition $apiDefinition = null)
+    public static function createFromArray($uri, array $data = [], ApiDefinition $apiDefinition = null, $uriParams = [])
     {
         $resource = new static($uri, $apiDefinition);
 
@@ -136,8 +143,11 @@ class Resource implements ArrayInstantiationInterface
             }
         }
 
-        if (isset($data['uriParameters'])) {
-            foreach ($data['uriParameters'] as $key => $uriParameter) {
+        $parentUriParameters = isset($data['uriParameters']) ? $data['uriParameters'] : [];
+        $uriParameters = array_merge($uriParams, $parentUriParameters);
+
+        if (count($uriParameters) > 0) {
+            foreach ($uriParameters as $key => $uriParameter) {
                 $resource->addUriParameter(
                     NamedParameter::createFromArray($key, $uriParameter ?: [])
                 );
@@ -165,9 +175,10 @@ class Resource implements ArrayInstantiationInterface
             if (strpos($key, '/') === 0) {
                 $resource->addResource(
                     Resource::createFromArray(
-                        $uri.$key,
+                        $uri . $key,
                         $value ?: [],
-                        $apiDefinition
+                        $apiDefinition,
+                        $parentUriParameters
                     )
                 );
             } elseif (in_array(strtoupper($key), Method::$validMethods)) {
@@ -177,6 +188,13 @@ class Resource implements ArrayInstantiationInterface
                         $value,
                         $apiDefinition
                     )
+                );
+            } elseif (preg_match('/\((.*)\)/', $key, $matches)) {
+                if (!is_array($value)) {
+                    $value = array($value);
+                }
+                $resource->addAnnotation(
+                    Annotation::createFromArray($matches[1], $value, $apiDefinition, 'Resource')
                 );
             }
         }
@@ -412,5 +430,41 @@ class Resource implements ArrayInstantiationInterface
     public function addSecurityScheme(SecurityScheme $securityScheme)
     {
         $this->securitySchemes[$securityScheme->getKey()] = $securityScheme;
+    }
+
+
+    /**
+     * Get all annotations
+     *
+     * @return Annotation[]
+     */
+    public function getAnnotations()
+    {
+        return $this->annotations;
+    }
+
+    /**
+     * Gets a specific type of annotation
+     *
+     * @param string $key
+     *
+     * @return Annotation|null
+     */
+    public function getAnnotation($key)
+    {
+        return isset($this->annotations[$key]) ? $this->annotations[$key] : null;
+    }
+
+    /**
+     * Adds an annotation
+     *
+     * @param Annotation $annotation
+     *
+     * @return self
+     */
+    public function addAnnotation($annotation)
+    {
+        $this->annotations[$annotation->getKey()] = $annotation;
+        return $this;
     }
 }
