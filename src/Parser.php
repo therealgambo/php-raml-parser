@@ -8,6 +8,7 @@ use Raml\Exception\RamlParserException;
 use Raml\FileLoader\DefaultFileLoader;
 use Raml\FileLoader\FileLoaderInterface;
 use Raml\FileLoader\JsonSchemaFileLoader;
+use Raml\Parsers\RamlHeaderParser;
 use Raml\Schema\Parser\JsonSchemaParser;
 use Raml\Schema\Parser\XmlSchemaParser;
 use Raml\Schema\SchemaParserInterface;
@@ -286,7 +287,7 @@ class Parser
     /**
      * Parse RAML data
      *
-     * @param string $ramlData
+     * @param array  $ramlData
      * @param string $rootDir
      *
      * @throws RamlParserException
@@ -546,8 +547,9 @@ class Parser
      */
     private function parseRamlString($ramlString, $rootDir)
     {
-        // get the header
-        $header = strtok($ramlString, "\n");
+        // Parse the RAML header and extract the version
+        $header = RamlHeaderParser::parse(strtok($ramlString, "\n"));
+        $this->ramlVersion = $header->getVersion();
 
         $data = $this->parseYaml($ramlString);
 
@@ -555,16 +557,10 @@ class Parser
             throw new \Exception('RAML file appears to be empty');
         }
 
-        if (strpos($header, '#%RAML') === 0) {
-            // @todo extract the version of the raml and do something with it
-            
-            $data = $this->includeAndParseFiles(
-                $data,
-                $rootDir
-            );
-        }
-
-        return $data;
+        return $this->includeAndParseFiles(
+            $data,
+            $rootDir
+        );
     }
 
     // ---
@@ -589,13 +585,12 @@ class Parser
      *
      * @throws \Exception
      *
-     * @return array
+     * @return array|bool
      */
     private function loadAndParseFile($fileName, $rootDir)
     {
         // first check if file is local or remote
-        $host = parse_url($fileName, PHP_URL_HOST);
-        if ($host === NULL) {
+        if (parse_url($fileName, PHP_URL_HOST) === null) {
             // local file
             $rootDir = realpath($rootDir);
             $fullPath = realpath($rootDir . '/' . $fileName);
@@ -672,7 +667,7 @@ class Parser
     private function includeAndParseFiles($structure, $rootDir)
     {
         if (is_array($structure)) {
-            $result = array();
+            $result = [];
             foreach ($structure as $key => $structureElement) {
                 $result[$key] = $this->includeAndParseFiles($structureElement, $rootDir);
             }

@@ -1,8 +1,8 @@
 {
-  "name": "alecsammon/php-raml-parser",
+  "name": "therealgambo/php-raml-parser",
   "type": "library",
   "description": "A RAML parser built in php",
-  "homepage": "https://github.com/alecsammon/php-raml-parser",
+  "homepage": "https://github.com/therealgambo/php-raml-parser",
   "license": "MIT",
 
   "authors": [

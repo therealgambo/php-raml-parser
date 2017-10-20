@@ -144,6 +144,18 @@ class Method implements ArrayInstantiationInterface, MessageSchemaInterface
     {
         $method = new static($method, $apiDefinition);
 
+        if (!is_null($apiDefinition)) {
+            $mediaTypes = $apiDefinition->getDefaultMediaType();
+
+            if (is_array($mediaTypes)) {
+                foreach ($mediaTypes as $mediaType) {
+                    $method->addBody(Body::createFromArray($mediaType));
+                }
+            } else {
+                $method->addBody(Body::createFromArray($mediaTypes));
+            }
+        }
+
         if (isset($data['body'])) {
             foreach ($data['body'] as $key => $bodyData) {
                 if (is_array($bodyData)) {
@@ -185,7 +197,7 @@ class Method implements ArrayInstantiationInterface, MessageSchemaInterface
         if (isset($data['responses']) && is_array($data['responses'])) {
             foreach ($data['responses'] as $responseCode => $response) {
                 $method->addResponse(
-                    Response::createFromArray($responseCode, $response ?: [])
+                    Response::createFromArray($responseCode, $response ?: [], $apiDefinition)
                 );
             }
         }
@@ -196,6 +208,10 @@ class Method implements ArrayInstantiationInterface, MessageSchemaInterface
                     NamedParameter::createFromArray($key, $queryParameterData)
                 );
             }
+        }
+
+        foreach ($apiDefinition->getSecuredBy() as $key => $securedBy) {
+            $method->addSecurityScheme($apiDefinition->getSecurityScheme($key));
         }
 
         if (isset($data['securedBy'])) {

@@ -67,9 +67,21 @@ class Response implements ArrayInstantiationInterface, MessageSchemaInterface
      *
      * @return Response
      */
-    public static function createFromArray($statusCode, array $data = [])
+    public static function createFromArray($statusCode, array $data = [], ApiDefinition $apiDefinition = null)
     {
         $response = new static($statusCode);
+
+        if (!is_null($apiDefinition)) {
+            $mediaTypes = $apiDefinition->getDefaultMediaType();
+
+            if (is_array($mediaTypes)) {
+                foreach ($mediaTypes as $mediaType) {
+                    $response->addBody(Body::createFromArray($mediaType));
+                }
+            } else {
+                $response->addBody(Body::createFromArray($mediaTypes));
+            }
+        }
 
         if (isset($data['body']) && is_array($data['body'])) {
             foreach ($data['body'] as $key => $bodyData) {
