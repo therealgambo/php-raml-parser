@@ -13,11 +13,19 @@ use Raml\Exception\BadParameter\InvalidSchemaDefinitionException;
 use Raml\Exception\BadParameter\InvalidProtocolException;
 use Raml\Exception\MutuallyExclusiveElementsException;
 
-use Raml\Utility\StringTransformer;
-
+use Raml\Type\BooleanType;
+use Raml\Type\DateOnlyType;
+use Raml\Type\DateTimeOnlyType;
+use Raml\Type\DateTimeType;
+use Raml\Type\FileType;
+use Raml\Type\IntegerType;
+use Raml\Type\NilType;
+use Raml\Type\NumberType;
+use Raml\Type\ObjectType;
+use Raml\Type\StringType;
+use Raml\Type\TimeOnlyType;
 use Raml\Type\UnionType;
 use Raml\Type\ArrayType;
-use Raml\Type\ObjectType;
 use Raml\Type\JsonType;
 use Raml\Type\XmlType;
 use Raml\Type\LazyProxyType;
@@ -45,6 +53,13 @@ class ApiDefinition implements ArrayInstantiationInterface
     private $title;
 
     /**
+     * The API Description (optional)
+     *
+     * @var string
+     */
+    private $description;
+
+    /**
      * The API Version (optional)
      *
      * @see http://raml.org/spec.html#api-version
@@ -54,20 +69,13 @@ class ApiDefinition implements ArrayInstantiationInterface
     private $version;
 
     /**
-     * Raml version
-     *
-     * @var string
-     */
-    private $ramlVersion;
-
-    /**
-     * The Base URL (optional for development, required in production)
+     * The Base URI (optional for development, required in production)
      *
      * @see http://raml.org/spec.html#base-uri-and-baseuriparameters
      *
      * @var string
      */
-    private $baseUrl;
+    private $baseUri;
 
     /**
      * Parameters defined in the Base URI
@@ -103,17 +111,7 @@ class ApiDefinition implements ArrayInstantiationInterface
      *
      * @var string
      */
-    private $defaultMediaType;
-
-    /**
-     * The schemas the API supplies defined in the root (optional)
-     *
-     * @deprecated Replaced by types element.
-     * @see http://raml.org/spec.html#schemas
-     *
-     * @var array[]
-     */
-    private $schemaCollections = [];
+    private $mediaType;
 
     /**
      * The documentation for the API (optional)
@@ -122,17 +120,31 @@ class ApiDefinition implements ArrayInstantiationInterface
      *
      * @var array
      */
-    private $documentationList;
+    private $documentation;
 
     /**
-     * The resources the API supplies
-     * {/*}
+     * A list of data types
      *
-     * @see http://raml.org/spec.html#resources-and-nested-resources
+     * @link https://github.com/raml-org/raml-spec/blob/master/versions/raml-10/raml-10.md/#raml-data-types
      *
-     * @var Resource[]
+     * @var \Raml\TypeCollection
      */
-    private $resources = [];
+    private $types = [];
+
+    private $traits = [];
+
+    private $resourceTypes = [];
+
+    /**
+     * A list of annotation type definitions
+     *
+     * @link https://github.com/raml-org/raml-spec/blob/master/versions/raml-10/raml-10.md/#annotations
+     *
+     * @var AnnotationType[]
+     */
+    private $annotationTypes = [];
+
+    private $annotations = [];
 
     /**
      * A list of security schemes
@@ -152,25 +164,30 @@ class ApiDefinition implements ArrayInstantiationInterface
      */
     private $securedBy = [];
 
-    /**
-     * A list of data types
-     *
-     * @link https://github.com/raml-org/raml-spec/blob/master/versions/raml-10/raml-10.md/#raml-data-types
-     *
-     * @var \Raml\TypeCollection
-     */
-    private $types = [];
+    private $uses = [];
 
     /**
-     * A list of annotation type definitions
+     * The resources the API supplies
+     * {/*}
      *
-     * @link https://github.com/raml-org/raml-spec/blob/master/versions/raml-10/raml-10.md/#annotations
+     * @see http://raml.org/spec.html#resources-and-nested-resources
      *
-     * @var AnnotationType[]
+     * @var Resource[]
      */
-    private $annotationTypes = [];
+    private $resources = [];
 
-    // ---
+
+    /**
+     * The schemas the API supplies defined in the root (optional)
+     *
+     * @deprecated Replaced by types element.
+     * @see http://raml.org/spec.html#schemas
+     *
+     * @var array[]
+     */
+    private $schemaCollections = [];
+
+    ###################################################################################################################
 
     /**
      * Create a new API Definition
@@ -210,42 +227,74 @@ class ApiDefinition implements ArrayInstantiationInterface
     {
         $apiDefinition = new static($title);
 
-        // --
+        // Schemas and Types must exclusively exist
+        if (isset($data['schemas']) && isset($data['types'])) {
+            throw new MutuallyExclusiveElementsException();
+        }
 
+        // Set the description for this API definition
+        if (isset($data['description'])) {
+            $apiDefinition->setDescription($data['description']);
+        }
+
+        // Set the version for this API definition
         if (isset($data['version'])) {
             $apiDefinition->setVersion($data['version']);
         }
 
-        if (isset($data['baseUrl'])) {
-            $apiDefinition->setBaseUrl($data['baseUrl']);
-        }
-
-        // support for RAML 0.8
+        // Set the baseUri for this API definition
         if (isset($data['baseUri'])) {
-            $apiDefinition->setBaseUrl($data['baseUri']);
+            $apiDefinition->setBaseUri($data['baseUri']);
         }
 
+        // Set the baseUriParameters that can be used within the baseUri
         if (isset($data['baseUriParameters'])) {
             foreach ($data['baseUriParameters'] as $key => $baseUriParameter) {
-                $apiDefinition->addBaseUriParameter(
+                $apiDefinition->setBaseUriParameter(
                     BaseUriParameter::createFromArray($key, $baseUriParameter)
                 );
             }
         }
 
-        if (isset($data['mediaType'])) {
-            $apiDefinition->setDefaultMediaType($data['mediaType']);
-        }
-
+        // Set the valid HTTP/HTTPS protocols for this API definition
         if (isset($data['protocols'])) {
             foreach ($data['protocols'] as $protocol) {
-                $apiDefinition->addProtocol($protocol);
+                $apiDefinition->setProtocol($protocol);
             }
         }
 
-        if (isset($data['defaultMediaType'])) {
-            $apiDefinition->setDefaultMediaType($data['defaultMediaType']);
+        // Set the default mediaType for this API definition
+        if (isset($data['mediaType'])) {
+            $apiDefinition->setMediaType($data['mediaType']);
         }
+
+        // Set the documentation for this API definition
+        if (isset($data['documentation'])) {
+            foreach ($data['documentation'] as $title => $documentation) {
+                $apiDefinition->setDocumentation($title, $documentation);
+            }
+        }
+
+        // Set the valid types that can be used for this API definition
+        if (isset($data['types'])) {
+            foreach ($data['types'] as $name => $definition) {
+                $apiDefinition->setType(ApiDefinition::determineType($name, $definition));
+            }
+        }
+
+        // @todo: traits
+
+        // @todo: resourceTypes
+
+        if (isset($data['annotationTypes'])) {
+            foreach ($data['annotationTypes'] as $key => $annotationType) {
+                if (!is_array($annotationType)) {
+                    $annotationType = array($annotationType);
+                }
+                $apiDefinition->addAnnotationType(AnnotationType::createFromArray($key, $annotationType));
+            }
+        }
+
 
         if (isset($data['securitySchemes'])) {
             foreach ($data['securitySchemes'] as $name => $securityScheme) {
@@ -263,31 +312,7 @@ class ApiDefinition implements ArrayInstantiationInterface
             }
         }
 
-        if (isset($data['documentation'])) {
-            foreach ($data['documentation'] as $title => $documentation) {
-                $apiDefinition->addDocumentation($title, $documentation);
-            }
-        }
-
-        if (isset($data['schemas']) && isset($data['types'])) {
-            throw new MutuallyExclusiveElementsException();
-        }
-
-        if (isset($data['schemas']) || isset($data['types'])) {
-            $types = isset($data['schemas']) ? $data['schemas'] : $data['types'];
-            foreach ($types as $name => $definition) {
-                $apiDefinition->addType(ApiDefinition::determineType($name, $definition));
-            }
-        }
-
-        if (isset($data['annotationTypes'])) {
-            foreach ($data['annotationTypes'] as $key => $annotationType) {
-                if (!is_array($annotationType)) {
-                    $annotationType = array($annotationType);
-                }
-                $apiDefinition->addAnnotationType(AnnotationType::createFromArray($key, $annotationType));
-            }
-        }
+        // @todo: uses
 
         // resolve type inheritance
         $apiDefinition->getTypes()->applyInheritance();
@@ -297,7 +322,7 @@ class ApiDefinition implements ArrayInstantiationInterface
         foreach ($data as $resourceName => $resource) {
             // check if actually a resource
             if (strpos($resourceName, '/') === 0) {
-                $apiDefinition->addResource(
+                $apiDefinition->setResource(
                     Resource::createFromArray(
                         $resourceName,
                         $resource,
@@ -328,6 +353,7 @@ class ApiDefinition implements ArrayInstantiationInterface
 
         $resources = $this->getResourcesAsArray($this->resources);
         foreach ($resources as $resource) {
+            /** @var $resource \Raml\Resource */
             if ($resource->matchesUri($uri)) {
                 return $resource;
             }
@@ -352,6 +378,7 @@ class ApiDefinition implements ArrayInstantiationInterface
 
         $resources = $this->getResourcesAsArray($this->resources);
         foreach ($resources as $resource) {
+            /** @var $resource \Raml\Resource */
             if ($path === $resource->getUri()) {
                 return $resource;
             }
@@ -386,7 +413,7 @@ class ApiDefinition implements ArrayInstantiationInterface
     /**
      * @param $resources
      *
-     * @return Resource[]
+     * @return Resource
      */
     private function getResourcesAsArray($resources)
     {
@@ -394,6 +421,7 @@ class ApiDefinition implements ArrayInstantiationInterface
 
         // Loop over each resource to build out the full URI's that it has.
         foreach ($resources as $resource) {
+            /** @var $resource \Raml\Resource */
             $resourceMap[$resource->getUri()] = $resource;
 
             $resourceMap = array_merge_recursive($resourceMap, $this->getResourcesAsArray($resource->getResources()));
@@ -401,93 +429,6 @@ class ApiDefinition implements ArrayInstantiationInterface
 
         return $resourceMap;
     }
-
-    // ---
-
-    /**
-     * Get the title of the API
-     *
-     * @return string
-     */
-    public function getTitle()
-    {
-        return $this->title;
-    }
-
-    // --
-
-    /**
-     * Get the version string of the API
-     *
-     * @return string
-     */
-    public function getVersion()
-    {
-        return $this->version;
-    }
-
-    /**
-     * Set the version
-     *
-     * @param $version
-     */
-    public function setVersion($version)
-    {
-        $this->version = $version;
-    }
-
-    // --
-
-    /**
-     * Get the base URI
-     *
-     * @return string
-     */
-    public function getBaseUrl()
-    {
-        return ($this->version) ? str_replace('{version}', $this->version, $this->baseUrl) : $this->baseUrl;
-    }
-
-    /**
-     * Set the base url
-     *
-     * @param string $baseUrl
-     */
-    public function setBaseUrl($baseUrl)
-    {
-        $this->baseUrl = $baseUrl;
-
-        if (!$this->protocols) {
-            $protocol = strtoupper(parse_url($this->baseUrl, PHP_URL_SCHEME));
-            if (!empty($protocol)) {
-                $this->protocols = [$protocol];
-            }
-        }
-    }
-
-    // --
-
-    /**
-     * Get the base uri parameters
-     *
-     * @return NamedParameter[]
-     */
-    public function getBaseUriParameters()
-    {
-        return $this->baseUriParameters;
-    }
-
-    /**
-     * Add a new base uri parameter
-     *
-     * @param NamedParameter $namedParameter
-     */
-    public function addBaseUriParameter(NamedParameter $namedParameter)
-    {
-        $this->baseUriParameters[$namedParameter->getKey()] = $namedParameter;
-    }
-
-    // --
 
     /**
      * Does the API support HTTP (non SSL) requests?
@@ -510,65 +451,12 @@ class ApiDefinition implements ArrayInstantiationInterface
     }
 
     /**
-     * Get the list of support protocols
-     *
-     * @return array
-     */
-    public function getProtocols()
-    {
-        return $this->protocols;
-    }
-
-    /**
-     * Add a supported protocol
-     *
-     * @param string $protocol
-     *
-     * @throws \InvalidArgumentException
-     */
-    public function addProtocol($protocol)
-    {
-        if (!in_array($protocol, [self::PROTOCOL_HTTP, self::PROTOCOL_HTTPS])) {
-            throw new InvalidProtocolException(sprintf('"%s" is not a valid protocol', $protocol));
-        }
-
-        if (!in_array($protocol, $this->protocols)) {
-            $this->protocols[] = $protocol;
-        }
-    }
-
-    // ---
-
-    /**
-     * Get the default media type
-     *
-     * @return string
-     */
-    public function getDefaultMediaType()
-    {
-        return $this->defaultMediaType;
-    }
-
-    /**
-     * Set a default media type
-     *
-     * @param $defaultMediaType
-     */
-    public function setDefaultMediaType($defaultMediaType)
-    {
-        // @todo - Should this validate?
-        $this->defaultMediaType = $defaultMediaType;
-    }
-
-    // --
-
-    /**
      * @deprecated Use types instead!
      * Get the schemas defined in the root of the API
      *
-     * @return array[]
+     * @return TypeCollection
      */
-    public function getSchemaCollections()
+    public function getSchemaCollections(): TypeCollection
     {
         return $this->types;
     }
@@ -608,38 +496,15 @@ class ApiDefinition implements ArrayInstantiationInterface
         $this->schemaCollections[$collectionName][$schemaName] = $schema;
     }
 
-    // --
-
-    /**
-     * Get the documentation of the API
-     *
-     * @return array
-     */
-    public function getDocumentationList()
-    {
-        return $this->documentationList;
-    }
-
-    /**
-     * Add a piece of documentation to the documentation list
-     *
-     * @param string $title
-     * @param string $documentation
-     */
-    public function addDocumentation($title, $documentation)
-    {
-        $this->documentationList[$title] = $documentation;
-    }
-
     /**
      * Determines the right Type and returns a type instance
      *
      * @param string                    $name       Name of type.
      * @param array                     $definition Definition of type.
-     * @param \Raml\TypeCollection|null $typeCollection Type collection object.
+     * @param TypeCollection|null       $typeCollection Type collection object.
      *
-     * @return Raml\TypeInterface Returns a (best) matched type object.
-     * @throws \Exception Thrown when no type is defined.
+     * @return TypeInterface
+     * @throws \Exception
      **/
     public static function determineType($name, $definition)
     {
@@ -667,18 +532,18 @@ class ApiDefinition implements ArrayInstantiationInterface
         
         // check if we can find a more appropriate Type subclass
         $straightForwardTypes = [
-            \Raml\Type\TimeOnlyType::TYPE_NAME      => 'Raml\Type\TimeOnlyType',
-            \Raml\Type\DateTimeType::TYPE_NAME      => 'Raml\Type\DateTimeType',
-            \Raml\Type\DateTimeOnlyType::TYPE_NAME  => 'Raml\Type\DateTimeOnlyType',
-            \Raml\Type\DateOnlyType::TYPE_NAME      => 'Raml\Type\DateOnlyType',
-            \Raml\Type\NumberType::TYPE_NAME        => 'Raml\Type\NumberType',
-            \Raml\Type\IntegerType::TYPE_NAME       => 'Raml\Type\IntegerType',
-            \Raml\Type\BooleanType::TYPE_NAME       => 'Raml\Type\BooleanType',
-            \Raml\Type\StringType::TYPE_NAME        => 'Raml\Type\StringType',
-            \Raml\Type\NilType::TYPE_NAME           => 'Raml\Type\NilType',
-            \Raml\Type\FileType::TYPE_NAME          => 'Raml\Type\FileType',
-            \Raml\Type\ArrayType::TYPE_NAME         => 'Raml\Type\ArrayType',
-            \Raml\Type\ObjectType::TYPE_NAME        => 'Raml\Type\ObjectType',
+            ArrayType::TYPE_NAME         => 'Raml\Type\ArrayType',
+            BooleanType::TYPE_NAME       => 'Raml\Type\BooleanType',
+            DateTimeType::TYPE_NAME      => 'Raml\Type\DateTimeType',
+            DateTimeOnlyType::TYPE_NAME  => 'Raml\Type\DateTimeOnlyType',
+            DateOnlyType::TYPE_NAME      => 'Raml\Type\DateOnlyType',
+            FileType::TYPE_NAME          => 'Raml\Type\FileType',
+            IntegerType::TYPE_NAME       => 'Raml\Type\IntegerType',
+            NilType::TYPE_NAME           => 'Raml\Type\NilType',
+            NumberType::TYPE_NAME        => 'Raml\Type\NumberType',
+            ObjectType::TYPE_NAME        => 'Raml\Type\ObjectType',
+            StringType::TYPE_NAME        => 'Raml\Type\StringType',
+            TimeOnlyType::TYPE_NAME      => 'Raml\Type\TimeOnlyType',
         ];
         
         $type = $definition['type'];
@@ -715,91 +580,6 @@ class ApiDefinition implements ArrayInstantiationInterface
         return Type::createFromArray($name, $definition);
     }
 
-    /**
-     * Add data type
-     *
-     * @param \Raml\TypeInterface $type
-     */
-    public function addType(TypeInterface $type)
-    {
-        $this->types->add($type);
-    }
-
-    /**
-     * Get all data types defined in the root of the API
-     *
-     * @return \Raml\TypeCollection
-     */
-    public function getTypes()
-    {
-        return $this->types;
-    }
-
-    // --
-
-    /**
-     * Get the resources tree
-     *
-     * @return \Raml\Resource[]
-     */
-    public function getResources()
-    {
-        return $this->resources;
-    }
-
-    /**
-     * Add an additional resource
-     *
-     * @param \Raml\Resource $resource
-     */
-    public function addResource(Resource $resource)
-    {
-        $this->resources[$resource->getUri()] = $resource;
-    }
-
-    // --
-
-    /**
-     * Get a security scheme by it's name
-     *
-     * @param string $schemeName
-     *
-     * @return SecurityScheme
-     */
-    public function getSecurityScheme($schemeName)
-    {
-        return $this->securitySchemes[$schemeName];
-    }
-
-    /**
-     * Add an additional security scheme
-     *
-     * @param SecurityScheme $securityScheme
-     */
-    public function addSecurityScheme(SecurityScheme $securityScheme)
-    {
-        $this->securitySchemes[$securityScheme->getKey()] = $securityScheme;
-    }
-
-    /**
-     * Get a list of security schemes that the whole API is secured by
-     *
-     * @return SecurityScheme
-     */
-    public function getSecuredBy()
-    {
-        return $this->securedBy;
-    }
-
-    /**
-     * Add an additional security scheme to the list of schemes the whole API is secured by
-     *
-     * @param SecurityScheme $securityScheme
-     */
-    public function addSecuredBy(SecurityScheme $securityScheme)
-    {
-        $this->securedBy[$securityScheme->getKey()] = $securityScheme;
-    }
 
     // ---
 
@@ -816,7 +596,7 @@ class ApiDefinition implements ArrayInstantiationInterface
     private function getMethodsAsArray(array $resources)
     {
         $all = [];
-        $baseUrl = $this->getBaseUrl();
+        $baseUrl = $this->getBaseUri();
         $protocols = $this->protocols;
 
         // Loop over each resource to build out the full URI's that it has.
@@ -840,26 +620,187 @@ class ApiDefinition implements ArrayInstantiationInterface
         return $all;
     }
 
+
+    ########################################################################################
+
+    public function getTitle()
+    {
+        return $this->title;
+    }
+
+    public function getDescription()
+    {
+        return $this->description;
+    }
+
+    public function setDescription($description)
+    {
+        $this->description = $description;
+    }
+
+    public function getVersion()
+    {
+        return $this->version;
+    }
+
+    public function setVersion($version)
+    {
+        $this->version = $version;
+    }
+
+    public function getBaseUri()
+    {
+        return ($this->version) ? str_replace('{version}', $this->version, $this->baseUri) : $this->baseUri;
+    }
+
+    public function setBaseUri($baseUri)
+    {
+        $this->baseUri = $baseUri;
+
+        if (!$this->protocols) {
+            $protocol = strtoupper(parse_url($this->baseUri, PHP_URL_SCHEME));
+            if (!empty($protocol)) {
+                $this->protocols[] = $protocol;
+            }
+        }
+    }
+
+    public function getBaseUriParameters()
+    {
+        return $this->baseUriParameters;
+    }
+
+    public function setBaseUriParameter(NamedParameter $namedParameter)
+    {
+        $this->baseUriParameters[$namedParameter->getKey()] = $namedParameter;
+    }
+
+    public function getProtocols()
+    {
+        return $this->protocols;
+    }
+
+    public function setProtocol($protocol)
+    {
+        if (!in_array($protocol, [self::PROTOCOL_HTTP, self::PROTOCOL_HTTPS])) {
+            throw new InvalidProtocolException(sprintf('"%s" is not a valid protocol', $protocol));
+        }
+
+        if (!in_array($protocol, $this->protocols)) {
+            $this->protocols[] = $protocol;
+        }
+    }
+
     /**
-     * Gets all annotation types
-     *
-     * @return AnnotationType[]
+     * @return array|string
      */
+    public function getMediaType()
+    {
+        return $this->mediaType;
+    }
+
+    public function setMediaType($mediaType)
+    {
+        $this->mediaType = $mediaType;
+    }
+
+    public function getDocumentation()
+    {
+        return $this->documentation;
+    }
+
+    public function setDocumentation($title, $documentation)
+    {
+        $this->documentation[$title] = $documentation;
+    }
+
+    public function getTypes()
+    {
+        return $this->types;
+    }
+
+    public function setType(TypeInterface $type)
+    {
+        $this->types->add($type);
+    }
+
+    public function getTraits()
+    {
+        return $this->traits;
+    }
+
+    public function setTrait($key, $trait)
+    {
+        $this->traits[$key] = $trait;
+    }
+
+    public function getResourceTypes()
+    {
+        return $this->resourceTypes;
+    }
+
+    public function setResourceType($key, $type)
+    {
+        $this->resourceTypes[$key] = $type;
+    }
+
     public function getAnnotationTypes()
     {
         return $this->annotationTypes;
     }
 
-    /**
-     * Adds an annotation types
-     *
-     * @param AnnotationType $annotationType
-     *
-     * @return self
-     */
-    public function addAnnotationType($annotationType)
+    public function addAnnotationType(AnnotationType $annotationType)
     {
         $this->annotationTypes[$annotationType->getKey()] = $annotationType;
-        return $this;
+    }
+
+    public function getAnnotations()
+    {
+        return $this->annotations;
+    }
+
+    public function setAnnotation($key, $annotation)
+    {
+        $this->annotations[$key] = $annotation;
+    }
+
+    public function getSecurityScheme($schemeName): SecurityScheme
+    {
+        return $this->securitySchemes[$schemeName];
+    }
+
+    public function addSecurityScheme(SecurityScheme $securityScheme)
+    {
+        $this->securitySchemes[$securityScheme->getKey()] = $securityScheme;
+    }
+
+    public function getSecuredBy()
+    {
+        return $this->securedBy;
+    }
+
+    public function addSecuredBy(SecurityScheme $securityScheme)
+    {
+        $this->securedBy[$securityScheme->getKey()] = $securityScheme;
+    }
+
+    public function getUses()
+    {
+        return $this->uses;
+    }
+
+    public function setUses($use)
+    {
+        $this->uses[] = $use;
+    }
+
+    public function getResources()
+    {
+        return $this->resources;
+    }
+
+    public function setResource(\Raml\Resource $resource)
+    {
+        $this->resources[$resource->getUri()] = $resource;
     }
 }

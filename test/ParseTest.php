@@ -35,7 +35,7 @@ baseUri: https://app.zencoder.com/api/{version}
 RAML;
 
         $simpleRaml = $this->parser->parseFromString($raml, '');
-        $docList = $simpleRaml->getDocumentationList();
+        $docList = $simpleRaml->getDocumentation();
 
         $this->assertEquals('ZEncoder API', $simpleRaml->getTitle());
         $this->assertEquals('Home', $docList[0]['title']);
@@ -54,7 +54,7 @@ baseUri: https://app.zencoder.com/api/{version}
 RAML;
 
         $simpleRaml = $this->parser->parseFromString($raml, __DIR__ . '/fixture');
-        $docList = $simpleRaml->getDocumentationList();
+        $docList = $simpleRaml->getDocumentation();
 
         $this->assertEquals('ZEncoder API', $simpleRaml->getTitle());
         $this->assertEquals('Home', $docList['title']);
@@ -67,8 +67,8 @@ RAML;
         $simpleRaml = $this->parser->parse(__DIR__.'/fixture/simple.raml');
         $this->assertEquals('World Music API', $simpleRaml->getTitle());
         $this->assertEquals('v1', $simpleRaml->getVersion());
-        $this->assertEquals('http://example.api.com/v1', $simpleRaml->getBaseUrl());
-        $this->assertEquals('application/json', $simpleRaml->getDefaultMediaType());
+        $this->assertEquals('http://example.api.com/v1', $simpleRaml->getBaseUri());
+        $this->assertEquals('application/json', $simpleRaml->getMediaType());
     }
 
     /** @test */
@@ -439,7 +439,7 @@ RAML;
     {
         $parent = $this->parser->parse(__DIR__.'/fixture/includeRaml.raml');
 
-        $documentation = $parent->getDocumentationList();
+        $documentation = $parent->getDocumentation();
         $this->assertEquals('Home', $documentation['title']);
         $this->assertEquals('Welcome to the _Zencoder API_ Documentation', $documentation['content']);
     }
@@ -449,7 +449,7 @@ RAML;
     {
         $parent = $this->parser->parse(__DIR__.'/fixture/includeYaml.raml');
 
-        $documentation = $parent->getDocumentationList();
+        $documentation = $parent->getDocumentation();
         $this->assertEquals('Home', $documentation['title']);
         $this->assertEquals('Welcome to the _Zencoder API_ Documentation', $documentation['content']);
     }

@@ -62,8 +62,9 @@ class Response implements ArrayInstantiationInterface, MessageSchemaInterface
     /**
      * Create a new response object from an array
      *
-     * @param string $statusCode
-     * @param array  $data
+     * @param string             $statusCode
+     * @param array              $data
+     * @param ApiDefinition|null $apiDefinition
      *
      * @return Response
      */
@@ -72,7 +73,7 @@ class Response implements ArrayInstantiationInterface, MessageSchemaInterface
         $response = new static($statusCode);
 
         if (!is_null($apiDefinition)) {
-            $mediaTypes = $apiDefinition->getDefaultMediaType();
+            $mediaTypes = $apiDefinition->getMediaType();
 
             if (is_array($mediaTypes)) {
                 foreach ($mediaTypes as $mediaType) {
@@ -125,7 +126,7 @@ class Response implements ArrayInstantiationInterface, MessageSchemaInterface
      *
      * @return BodyInterface
      */
-    public function getBodyByType($type)
+    public function getBodyByType($type): BodyInterface
     {
         if (isset($this->bodyList[$type])) {
             return $this->bodyList[$type];

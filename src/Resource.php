@@ -1,4 +1,5 @@
 <?php
+
 namespace Raml;
 
 /**
@@ -104,13 +105,16 @@ class Resource implements ArrayInstantiationInterface
         foreach ($apiDefinition->getBaseUriParameters() as $baseUriParameter) {
             $this->addBaseUriParameter($baseUriParameter);
         }
+
+        foreach ($apiDefinition->getSecuredBy() as $key => $securedBy) {
+            $this->addSecurityScheme($apiDefinition->getSecurityScheme($key));
+        }
     }
 
     /**
      * Create a Resource from an array
      *
      * @param string        $uri
-     * @param ApiDefinition $apiDefinition
      * @param array         $data
      * [
      *  uri:               string
@@ -118,10 +122,11 @@ class Resource implements ArrayInstantiationInterface
      *  description:       ?string
      *  baseUriParameters: ?array
      * ]
+     * @param ApiDefinition $apiDefinition
      *
      * @return self
      */
-    public static function createFromArray($uri, array $data = [], ApiDefinition $apiDefinition = null, $uriParams = [])
+    public static function createFromArray($uri, array $data = [], ApiDefinition $apiDefinition = null)
     {
         $resource = new static($uri, $apiDefinition);
 
@@ -143,19 +148,12 @@ class Resource implements ArrayInstantiationInterface
             }
         }
 
-        $parentUriParameters = isset($data['uriParameters']) ? $data['uriParameters'] : [];
-        $uriParameters = array_merge($uriParams, $parentUriParameters);
-
-        if (count($uriParameters) > 0) {
-            foreach ($uriParameters as $key => $uriParameter) {
+        if (isset($data['uriParameters'])) {
+            foreach ($data['uriParameters'] as $key => $uriParameter) {
                 $resource->addUriParameter(
                     NamedParameter::createFromArray($key, $uriParameter ?: [])
                 );
             }
-        }
-
-        foreach ($apiDefinition->getSecuredBy() as $key => $securedBy) {
-            $resource->addSecurityScheme($apiDefinition->getSecurityScheme($key));
         }
 
         if (isset($data['securedBy'])) {
@@ -176,15 +174,36 @@ class Resource implements ArrayInstantiationInterface
         }
 
         foreach ($data as $key => $value) {
-            if (strpos($key, '/') === 0) {
-                $resource->addResource(
-                    Resource::createFromArray(
-                        $uri . $key,
-                        $value ?: [],
-                        $apiDefinition,
-                        $parentUriParameters
-                    )
+            if (preg_match('/\((.*)\)/', $key, $matches)) {
+                if (!is_array($value)) {
+                    $value = array($value);
+                }
+                $resource->addAnnotation(
+                    Annotation::createFromArray($matches[1], $value, $apiDefinition, 'Resource')
                 );
+            }
+        }
+
+        foreach ($data as $key => $value) {
+            if (strpos($key, '/') === 0) {
+                $value = $value ?: [];
+                if (isset($data['uriParameters'])) {
+                    $currentParameters = isset($value['uriParameters']) ? $value['uriParameters'] : [];
+                    $value['uriParameters'] = array_merge($currentParameters, $data['uriParameters']);
+                }
+
+                $newResource = Resource::createFromArray(
+                    $uri . $key,
+                    $value,
+                    $apiDefinition
+                );
+
+                foreach ($resource->getAnnotations() as $annotation)
+                {
+                    $newResource->addAnnotation($annotation);
+                }
+
+                $resource->addResource($newResource);
             } elseif (in_array(strtoupper($key), Method::$validMethods)) {
                 $resource->addMethod(
                     Method::createFromArray(
@@ -192,13 +211,6 @@ class Resource implements ArrayInstantiationInterface
                         $value,
                         $apiDefinition
                     )
-                );
-            } elseif (preg_match('/\((.*)\)/', $key, $matches)) {
-                if (!is_array($value)) {
-                    $value = array($value);
-                }
-                $resource->addAnnotation(
-                    Annotation::createFromArray($matches[1], $value, $apiDefinition, 'Resource')
                 );
             }
         }
@@ -363,7 +375,7 @@ class Resource implements ArrayInstantiationInterface
     /**
      * Add a resource
      *
-     * @param self $resource
+     * @param Resource $resource
      */
     public function addResource(Resource $resource)
     {

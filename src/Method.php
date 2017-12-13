@@ -145,7 +145,7 @@ class Method implements ArrayInstantiationInterface, MessageSchemaInterface
         $method = new static($method, $apiDefinition);
 
         if (!is_null($apiDefinition)) {
-            $mediaTypes = $apiDefinition->getDefaultMediaType();
+            $mediaTypes = $apiDefinition->getMediaType();
 
             if (is_array($mediaTypes)) {
                 foreach ($mediaTypes as $mediaType) {

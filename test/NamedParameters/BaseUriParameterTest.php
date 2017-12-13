@@ -62,7 +62,7 @@ RAML;
     {
         $apiDef = $this->getValidDef();
 
-        $this->assertEquals('https://{apiDomain}.someapi.com/1.2', $apiDef->getBaseUrl());
+        $this->assertEquals('https://{apiDomain}.someapi.com/1.2', $apiDef->getBaseUri());
     }
 
     /** @test */

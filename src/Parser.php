@@ -370,6 +370,7 @@ class Parser
      * @param string $rootDir
      *
      * @throws InvalidSchemaTypeException
+     * @throws \Exception
      *
      * @return array
      */
@@ -557,10 +558,16 @@ class Parser
             throw new \Exception('RAML file appears to be empty');
         }
 
-        return $this->includeAndParseFiles(
+        $parsedString = $this->includeAndParseFiles(
             $data,
             $rootDir
         );
+
+//        if ($this->ramlVersion === RamlVersionParser::RAML_10) {
+//            return new Raml10Parser($parsedString);
+//        }
+
+        return $parsedString;
     }
 
     // ---
